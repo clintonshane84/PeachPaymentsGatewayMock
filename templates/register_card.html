@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Card</title>
+    <style>
+        /* Add some basic styling */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+        }
+
+        .card-form {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+
+        .card-form h2 {
+            margin-bottom: 20px;
+        }
+
+        .card-form input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .card-form select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .card-form button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            border: none;
+            color: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <form class="card-form" action="{{ url_for('payment.register_card') }}" method="post" onsubmit="return validateForm()">
+        <h2>Register Card</h2>
+        <label for="cardBrand">Brand</label>
+        <select name="cardBrand" id="cardBrand">
+            <option value="VISA">Visa</option>
+            <option value="MASTERCARD">MasterCard</option>
+        </select>
+        <label for="cardNumber">Card Number</label>
+        <input type="text" id="cardNumber" name="cardNumber" required pattern="\d{16}" title="Card number must be 16 digits">
+        <label for="cardHolder">Card Holder</label>
+        <input type="text" id="cardHolder" name="cardHolder" required>
+        <label for="cardExpiryMonth">Expiry Month</label>
+        <input type="text" id="cardExpiryMonth" name="cardExpiryMonth" required>
+        <label for="cardExpiryYear">Expiry Year</label>
+        <input type="text" id="cardExpiryYear" name="cardExpiryYear" required>
+        <label for="checkoutId">Checkout ID</label>
+        <input type="text" id="checkoutId" name="checkoutId" value="{{ checkoutId }}">
+        <div class="error-message" id="errorMessage"></div>
+        <button type="submit">Register</button>
+    </form>
+    <script>
+        function validateForm() {
+            var cardNumber = document.getElementById("cardNumber").value;
+            var errorMessage = document.getElementById("errorMessage");
+            var isValid = /^\d{16}$/.test(cardNumber);
+
+            if (!isValid) {
+                errorMessage.textContent = "Card number must be exactly 16 numeric characters.";
+                return false;
+            }
+
+            errorMessage.textContent = "";
+            return true;
+        }
+    </script>
+</body>
+</html>

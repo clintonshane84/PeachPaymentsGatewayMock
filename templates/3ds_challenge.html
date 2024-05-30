@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3DS Challenge Test</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .container h2 {
+            margin-bottom: 20px;
+        }
+        .container form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container form label {
+            margin-bottom: 10px;
+        }
+        .container form input[type="radio"] {
+            margin-right: 10px;
+        }
+        .container form button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .container form button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>3DS Challenge Test</h2>
+    <form action="/v1/update_transaction" method="POST">
+        <label>
+            <input type="radio" name="outcome" value="success" required>
+            Success
+        </label>
+        <label>
+            <input type="radio" name="outcome" value="failure" required>
+            Failure
+        </label>
+        <input type="hidden" name="transaction_id" value="{{ transaction_id }}">
+        <button type="submit">Submit</button>
+    </form>
+</div>
+</body>
+</html>
