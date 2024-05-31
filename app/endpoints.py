@@ -216,6 +216,7 @@ class PaymentEndpoint:
                 transaction.payment_brand = card_brand
                 db.session.commit()
 
+        ndc = f"{checkout.entity_id}_{transaction.transaction_id}"
 
         # Create the mock response
         response = {
@@ -234,7 +235,7 @@ class PaymentEndpoint:
         }
         # Redirect to the 3DS challenge
         return redirect(url_for('payment.three_ds_challenge',
-                                transaction_id=transaction.transaction_id) + f"?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={checkout.entity_id}_{transaction.transaction_id}")
+                                transaction_id=transaction.transaction_id) + f"?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={ndc}")
 
     @staticmethod
     @payment_blueprint.route('/3ds_challenge/<transaction_id>', methods=['GET'])
@@ -293,13 +294,13 @@ class PaymentEndpoint:
             acs_transaction_id = str(uuid.uuid4())
             short_id = generate_short_id()
             transaction.payload_id = transaction.transaction_id
-            transaction.connector_tx_id1=connector_tx_id1
-            transaction.connector_tx_id2=connector_tx_id2
-            transaction.connector_tx_id3=connector_tx_id3
-            transaction.reconciliation_id=reconciliation_id
-            transaction.ds_transaction_id=ds_transaction_id
-            transaction.acs_transaction_id=acs_transaction_id
-            transaction.short_id=short_id
+            transaction.connector_tx_id1 = connector_tx_id1
+            transaction.connector_tx_id2 = connector_tx_id2
+            transaction.connector_tx_id3 = connector_tx_id3
+            transaction.reconciliation_id = reconciliation_id
+            transaction.ds_transaction_id = ds_transaction_id
+            transaction.acs_transaction_id = acs_transaction_id
+            transaction.short_id = short_id
 
         db.session.commit()
 
@@ -461,7 +462,6 @@ class PaymentEndpoint:
             payment_brand="",
             amount=float(amount),
             currency=currency,
-            merchant_transaction_id="",
             result_code="000.200.000",
             result_description="transaction pending",
             timestamp=datetime.utcnow(),
@@ -469,7 +469,7 @@ class PaymentEndpoint:
             standing_instruction_type=standing_instruction_type,
             standing_instruction_mode=standing_instruction_mode,
             standing_instruction_source=standing_instruction_source,
-            merchantTransactionId=merchant_transaction_id
+            merchant_transaction_id=merchant_transaction_id
         )
         db.session.add(new_transaction)
         db.session.commit()
