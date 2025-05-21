@@ -1,17 +1,16 @@
-import base64
-import string
 import random
+import re
+import string
+import uuid
+from datetime import datetime
 
+import requests
 from flask import Blueprint, request, jsonify, redirect, render_template, current_app, url_for, Response
 
 from .generator.payload_generator_factory import PayloadGeneratorFactory
 from .models import db, Transaction, User, UserCard, CardRegistration, CheckoutTransactionLink, Checkout
 from .utils import generate_connector_tx_id2, generate_connector_tx_id3, generate_short_id, generate_acquirer_ref, \
-    generate_build_number, generate_reconciliation_id, encrypt_payload
-import uuid
-from datetime import datetime
-import re
-import requests
+    generate_reconciliation_id, encrypt_payload
 
 payment_blueprint = Blueprint('payment', __name__)
 
@@ -31,12 +30,6 @@ class PaymentEndpoint:
         # Get all query parameters
         query_params = request.args.to_dict()
         return render_template('payment_widget.html', **query_params)
-
-    @staticmethod
-    @payment_blueprint.route('/checkout_screen', methods=['GET'])
-    def checkout_screen():
-        return render_template('checkout_screen.html')
-
 
     @staticmethod
     @payment_blueprint.route('/registrations/<token>/payments', methods=['POST'])
@@ -136,6 +129,8 @@ class PaymentEndpoint:
         db.session.add(new_transaction)
         db.session.commit()
 
+        payment_gateway_host = current_app.config.get('PAYMENT_GATEWAY_HOST', 'http://192.168.31.93:5080')
+
         # Create the mock response
         response = {
             "id": payload_id,
@@ -149,14 +144,14 @@ class PaymentEndpoint:
                 "challengeIndicator": "04"
             },
             "redirect": {
-                "url": f"http://192.168.31.93:5080/v1/3ds_challenge/{transaction_id}?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={ndc}",
+                "url": f"{payment_gateway_host}/v1/3ds_challenge/{transaction_id}?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={ndc}",
                 "parameters": [],
                 "preconditions": [
                     {
                         "origin": "iframe#hidden",
                         "waitUntil": "iframe#load",
                         "description": "Hidden iframe post for 3D Secure 2.0",
-                        "url": "http://192.168.31.93:5080/v1/update_transaction?action=ACI3DS2AccessControlServer&acsRequest=METHOD",
+                        "url": f"{payment_gateway_host}/v1/update_transaction?action=ACI3DS2AccessControlServer&acsRequest=METHOD",
                         "method": "POST",
                         "parameters": [
                             {
@@ -250,6 +245,8 @@ class PaymentEndpoint:
 
                 db.session.commit()
 
+        if checkout == None:
+            checkout
         ndc = f"{checkout.entity_id}_{transaction.transaction_id}"
 
         # Create the mock response
@@ -527,7 +524,7 @@ class PaymentEndpoint:
         standing_instruction_type = data.get('standingInstruction.type', 'UNSCHEDULED')
         standing_instruction_source = data.get('standingInstruction.source', 'CIT')
         merchant_transaction_id = data.get('merchantTransactionId')
-        shopper_result_url = data.get('shopperResultUrl')
+        shopper_result_url = data.get('shopperResultUrl', '')
 
         # Check for required parameters
         if not all([entity_id, amount, payment_type, currency, merchant_transaction_id]):

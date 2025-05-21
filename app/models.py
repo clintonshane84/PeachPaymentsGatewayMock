@@ -122,3 +122,26 @@ class CheckoutTransactionLink(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     checkout_id = db.Column(db.String(50), db.ForeignKey('checkout.id'), nullable=False)
     transaction_id = db.Column(db.String(50), db.ForeignKey('transaction.transaction_id'), nullable=False)
+
+
+class TransactionSequence(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    next_sequence = db.Column(db.BigInteger, nullable=False, default=1706876509786886)
+
+    @classmethod
+    def get_next_sequence(cls):
+        sequence = cls.query.first()
+        if sequence is None:
+            sequence = cls(next_sequence=1706876509786886)
+            db.session.add(sequence)
+            db.session.commit()
+        return sequence
+
+    @classmethod
+    def increment_sequence(cls):
+        sequence = cls.get_next_sequence()
+        next_seq = sequence.next_sequence
+        sequence.next_sequence += 1
+        db.session.commit()
+        return next_seq
+
