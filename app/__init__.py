@@ -8,9 +8,9 @@ from .endpoints import payment_blueprint
 from .models import db, User
 
 
-def create_app(config_name):
+def create_app():
     app = Flask(__name__, template_folder='../templates')
-    app.config.from_object(Config)
+    app.config.from_object(Config())
 
     db.init_app(app)
     migrate = Migrate(app, db)
