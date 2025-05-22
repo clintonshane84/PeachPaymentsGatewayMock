@@ -1,0 +1,40 @@
+# Byte-compiled Python files
+*.py[cod]
+
+# Log files
+*.log
+
+# Database files
+instance/*.db
+instance/*.sqlite
+
+# Virtual environment files
+venv/
+env/
+
+# IDE files
+.vscode/
+.pycharm/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask files
+__pycache__/
+*.pyc
+
+# Static files (if you're using a CDN or external storage)
+static/uploads/
+
+# Secrets and config files
+instance/config.py
+config.py
+secrets.json
+
+# Other files
+*.env
+requirements.txt
+ Pipfile
+Pipfile.lock
