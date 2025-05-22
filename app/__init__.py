@@ -1,14 +1,16 @@
-from flask import Flask, send_from_directory, render_template, request
-from flask_migrate import Migrate, upgrade
+from flask import Flask
+from flask_cors import CORS
+from flask_migrate import Migrate
 from sqlalchemy import inspect
-from .config import config_by_name
-from .models import db, User
+
+from .config import Config
 from .endpoints import payment_blueprint
+from .models import db, User
 
 
-def create_app(config_name):
+def create_app():
     app = Flask(__name__, template_folder='../templates')
-    app.config.from_object(config_by_name[config_name])
+    app.config.from_object(Config())
 
     db.init_app(app)
     migrate = Migrate(app, db)
@@ -21,5 +23,8 @@ def create_app(config_name):
         if not inspector.get_table_names():
             db.create_all()
             User.create_test_user()  # Create test user and card
+
+    # Enable CORS
+    CORS(app)
 
     return app

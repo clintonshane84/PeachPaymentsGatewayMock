@@ -1,12 +1,16 @@
-from flask import Blueprint, request, jsonify, redirect, render_template, current_app, url_for
-
-from transaction_poller.services import TransactionService
-from .models import db, Transaction, User, UserCard, CardRegistration, CheckoutTransactionLink, Checkout
-from .utils import generate_connector_tx_id2, generate_connector_tx_id3, generate_short_id
+import random
+import re
+import string
 import uuid
 from datetime import datetime
-import re
+
 import requests
+from flask import Blueprint, request, jsonify, redirect, render_template, current_app, url_for, Response
+
+from .generator.payload_generator_factory import PayloadGeneratorFactory
+from .models import db, Transaction, User, UserCard, CardRegistration, CheckoutTransactionLink, Checkout
+from .utils import generate_connector_tx_id2, generate_connector_tx_id3, generate_short_id, generate_acquirer_ref, \
+    generate_reconciliation_id, encrypt_payload
 
 payment_blueprint = Blueprint('payment', __name__)
 
@@ -75,7 +79,7 @@ class PaymentEndpoint:
         connector_tx_id1 = str(uuid.uuid4())
         connector_tx_id2 = generate_connector_tx_id2()
         connector_tx_id3 = generate_connector_tx_id3(float(amount))
-        reconciliation_id = "0200:650467408676:0209134721"
+        reconciliation_id = generate_reconciliation_id()
         ds_transaction_id = str(uuid.uuid4())
         acs_transaction_id = str(uuid.uuid4())
         short_id = generate_short_id()
@@ -88,11 +92,13 @@ class PaymentEndpoint:
         card_expiry_month = last_registered_card.card_expiry_month
         card_expiry_year = last_registered_card.card_expiry_year
         card_brand = last_registered_card.card_brand
+        result_code = "000.200.000"
+        result_description = "transaction pending"
 
         # Create a new transaction record
         new_transaction = Transaction(
             transaction_id=transaction_id,
-            registration_id=last_registered_card.id,
+            registration_id=last_registered_card.card_token,
             payment_type=payment_type,
             payment_brand=card_brand,
             amount=float(amount),
@@ -116,10 +122,14 @@ class PaymentEndpoint:
             card_holder=card_holder,
             card_expiry_month=card_expiry_month,
             card_expiry_year=card_expiry_year,
-            shopper_result_url=shopper_result_url
+            shopper_result_url=shopper_result_url,
+            result_code=result_code,
+            result_description=result_description
         )
         db.session.add(new_transaction)
         db.session.commit()
+
+        payment_gateway_host = current_app.config.get('PAYMENT_GATEWAY_HOST', 'http://192.168.31.93:5080')
 
         # Create the mock response
         response = {
@@ -127,21 +137,21 @@ class PaymentEndpoint:
             "paymentType": payment_type,
             "merchantTransactionId": merchant_transaction_id,
             "result": {
-                "code": "000.200.000",
-                "description": "transaction pending"
+                "code": result_code,
+                "description": result_description
             },
             "threeDSecure": {
                 "challengeIndicator": "04"
             },
             "redirect": {
-                "url": f"http://192.168.31.93:5080/v1/3ds_challenge/{transaction_id}?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={ndc}",
+                "url": f"{payment_gateway_host}/v1/3ds_challenge/{transaction_id}?asyncsource=ACI_3DS_2&type=methodRedirect&cdkForward=true&ndcid={ndc}",
                 "parameters": [],
                 "preconditions": [
                     {
                         "origin": "iframe#hidden",
                         "waitUntil": "iframe#load",
                         "description": "Hidden iframe post for 3D Secure 2.0",
-                        "url": "http://192.168.31.93:5080/v1/update_transaction?action=ACI3DS2AccessControlServer&acsRequest=METHOD",
+                        "url": f"{payment_gateway_host}/v1/update_transaction?action=ACI3DS2AccessControlServer&acsRequest=METHOD",
                         "method": "POST",
                         "parameters": [
                             {
@@ -196,7 +206,24 @@ class PaymentEndpoint:
             card_last4_digits=card_last4_digits,
             card_brand=card_brand
         )
+
         db.session.add(new_card_registration)
+        db.session.commit()
+
+        user = User(
+            username='test'.join(random.choices(string.digits, k=4))
+        )
+
+        db.session.add(user)
+        db.session.commit()
+
+        user_card = UserCard(
+            user_id=user.id,
+            card_token=new_card_registration.card_token,
+            card_registration_id=new_card_registration.id
+        )
+
+        db.session.add(user_card)
         db.session.commit()
 
         # Retrieve the related transaction if checkout_id is provided
@@ -208,14 +235,18 @@ class PaymentEndpoint:
                 transaction = Transaction.query.filter_by(transaction_id=transaction_link.transaction_id).first()
                 checkout = Checkout.query.filter_by(id=checkout_id).first()
                 checkout.card_registration_id = new_card_registration.card_token
+                transaction.registration_id = new_card_registration.card_token
                 transaction.card_bin = card_bin
                 transaction.card_holder = card_holder
                 transaction.card_last4_digits = card_last4_digits
                 transaction.card_expiry_month = card_expiry_month
                 transaction.card_expiry_year = card_expiry_year
                 transaction.payment_brand = card_brand
+
                 db.session.commit()
 
+        if checkout == None:
+            checkout
         ndc = f"{checkout.entity_id}_{transaction.transaction_id}"
 
         # Create the mock response
@@ -289,7 +320,7 @@ class PaymentEndpoint:
             connector_tx_id1 = str(uuid.uuid4())
             connector_tx_id2 = generate_connector_tx_id2()
             connector_tx_id3 = generate_connector_tx_id3(float(transaction.amount))
-            reconciliation_id = "0200:650467408676:0209134721"
+            reconciliation_id = generate_reconciliation_id()
             ds_transaction_id = str(uuid.uuid4())
             acs_transaction_id = str(uuid.uuid4())
             short_id = generate_short_id()
@@ -304,52 +335,12 @@ class PaymentEndpoint:
 
         db.session.commit()
 
-        # Create the payload for the callback
-        payload = {
-            "type": "PAYMENT",
-            "payload": {
-                "id": transaction.transaction_id,
-                "registrationId": transaction.registration_id,
-                "paymentType": transaction.payment_type,
-                "paymentBrand": transaction.payment_brand,
-                "amount": transaction.amount,
-                "currency": transaction.currency,
-                "merchantTransactionId": transaction.merchant_transaction_id,
-                "result": {
-                    "code": transaction.result_code,
-                    "description": transaction.result_description
-                },
-                "card": {
-                    "bin": transaction.card_bin,
-                    "last4Digits": transaction.card_last4_digits,
-                    "holder": transaction.card_holder,
-                    "expiryMonth": transaction.card_expiry_month,
-                    "expiryYear": transaction.card_expiry_year
-                },
-                "threeDSecure": {
-                    "dsTransactionId": transaction.ds_transaction_id,
-                    "acsTransactionId": transaction.acs_transaction_id
-                },
-                "resultDetails": {
-                    "ConnectorTxID1": transaction.connector_tx_id1,
-                    "ConnectorTxID2": transaction.connector_tx_id2,
-                    "ConnectorTxID3": transaction.connector_tx_id3,
-                    "reconciliationId": transaction.reconciliation_id
-                },
-                "timestamp": transaction.timestamp.isoformat(),
-                "ndc": transaction.ndc,
-                "shortId": transaction.short_id,
-                "standingInstruction": {
-                    "mode": transaction.standing_instruction_mode,
-                    "type": transaction.standing_instruction_type,
-                    "source": transaction.standing_instruction_source
-                }
-            }
-        }
-
-        # Send the callback to the configured URL
-        webhook_url = current_app.config.get('WEBHOOK_URL')
-        response = requests.post(webhook_url, json=payload, verify=False)
+        # Create the payload generator
+        payload_generator = PayloadGeneratorFactory.get_payload_generator('card_register', transaction)
+        # Generate the payload for the callback
+        payload = payload_generator.generate_payload()
+        # Send the webhook to the merchant's server
+        response = PaymentEndpoint.send_webhook(payload)
 
         if response.status_code == 200:
             message = "Transaction processed successfully"
@@ -494,3 +485,149 @@ class PaymentEndpoint:
         }
 
         return jsonify(response_data), 200
+
+    @staticmethod
+    @payment_blueprint.route('/payments/<transaction_id>', methods=['POST'])
+    def payments(transaction_id):
+        # Retrieve the transaction
+        transaction = Transaction.query.filter_by(transaction_id=transaction_id).first()
+
+        if not transaction:
+            return jsonify({"error": "Transaction not found"}), 404
+
+        # Handle different content types
+        if request.content_type == 'application/json':
+            data = request.json
+        else:
+            data = request.form
+
+        outcome = request.form.get('outcome', 'success')
+        result_code = '000.100.110'
+        result_description = 'Request successfully processed in \'Merchant in Integrator Test Mode\''
+
+        # Update the transaction status based on the outcome
+        if outcome == 'failure':
+            result_code = '800.100.152'
+            result_description = 'transaction declined by authorization system'
+        elif outcome == 'technical_error':
+            transaction.result_code = '100.390.112'
+            result_description = 'Technical Error in 3D system'
+        else:
+            return jsonify({"error": "Invalid outcome"}), 400
+
+        # Extract and validate the required parameters from the request
+        entity_id = data.get('entityId')
+        amount = data.get('amount')
+        currency = data.get('currency', "ZAR")
+        payment_type = data.get('paymentType', 'DB')
+        standing_instruction_mode = data.get('standingInstruction.mode', 'INITIATED')
+        standing_instruction_type = data.get('standingInstruction.type', 'UNSCHEDULED')
+        standing_instruction_source = data.get('standingInstruction.source', 'CIT')
+        merchant_transaction_id = data.get('merchantTransactionId')
+        shopper_result_url = data.get('shopperResultUrl', '')
+
+        # Check for required parameters
+        if not all([entity_id, amount, payment_type, currency, merchant_transaction_id]):
+            return jsonify({"error": "Missing required parameters"}), 400
+
+        last_registered_card = CardRegistration()
+        transaction_link = CheckoutTransactionLink.query.filter_by(transaction_id=transaction_id).first()
+
+        if transaction_link:
+            checkout = Checkout.query.filter_by(id=transaction_link.checkout_id).first()
+
+            # Retrieve the user's last registered card using the token
+            last_registered_card = CardRegistration.query.filter_by(card_token=checkout.card_registration_id).first()
+            if not last_registered_card:
+                return jsonify({"error": "No registered card found for the user"}), 404
+
+        # Generate unique IDs and other data
+        transaction_id = str(uuid.uuid4())
+        timestamp = datetime.utcnow()
+        connector_tx_id1 = str(uuid.uuid4())
+        connector_tx_id2 = generate_connector_tx_id2()
+        connector_tx_id3 = generate_connector_tx_id3(float(amount))
+        reconciliation_id = generate_reconciliation_id()
+        ds_transaction_id = str(uuid.uuid4())
+        acs_transaction_id = str(uuid.uuid4())
+        short_id = generate_short_id()
+        payload_id = transaction_id
+        ndc = f"{entity_id}_{payload_id}"
+        card_bin = last_registered_card.card_bin
+        card_last4_digits = last_registered_card.card_last4_digits
+        card_holder = last_registered_card.card_holder
+        card_expiry_month = last_registered_card.card_expiry_month
+        card_expiry_year = last_registered_card.card_expiry_year
+        card_brand = last_registered_card.card_brand
+
+        # Create a new transaction record
+        new_transaction = Transaction(
+            transaction_id=transaction_id,
+            registration_id=last_registered_card.id,
+            payment_type=payment_type,
+            payment_brand=card_brand,
+            amount=float(amount),
+            currency=currency,
+            merchant_transaction_id=merchant_transaction_id,
+            timestamp=timestamp,
+            standing_instruction_mode=standing_instruction_mode,
+            standing_instruction_type=standing_instruction_type,
+            standing_instruction_source=standing_instruction_source,
+            connector_tx_id1=connector_tx_id1,
+            connector_tx_id2=connector_tx_id2,
+            connector_tx_id3=connector_tx_id3,
+            reconciliation_id=reconciliation_id,
+            ds_transaction_id=ds_transaction_id,
+            acs_transaction_id=acs_transaction_id,
+            short_id=short_id,
+            payload_id=payload_id,
+            ndc=ndc,
+            card_bin=card_bin,
+            card_last4_digits=card_last4_digits,
+            card_holder=card_holder,
+            card_expiry_month=card_expiry_month,
+            card_expiry_year=card_expiry_year,
+            shopper_result_url=shopper_result_url,
+            result_code=result_code,
+            result_description=result_description
+        )
+        db.session.add(new_transaction)
+        db.session.commit()
+
+        # Create the payload generator
+        payload_generator = PayloadGeneratorFactory.get_payload_generator('recurring_payment', transaction, data)
+        # Generate the payload for the callback
+        payload = payload_generator.generate_payload()
+
+        if payment_type in ["RV", "RF"]:
+            payload['paymentMethod'] = payment_type
+            payload['referenceId'] = transaction_id
+            payload['resultDetails']['AcquirerReference'] = generate_acquirer_ref()
+
+        # Send the callback to the configured URL
+        PaymentEndpoint.send_webhook(payload)
+
+        return jsonify(payload), 200
+
+    @staticmethod
+    def send_webhook(payload) -> Response:
+        # Encryption key (should be securely stored and retrieved in production)
+        key = current_app.config.get('ENCRYPTION_KEY')
+        key = bytes.fromhex(key)
+
+        # Encrypt the payload
+        encrypted_payload, iv, auth_tag = encrypt_payload(payload, key)
+
+        response_payload = {
+            "encryptedBody": encrypted_payload
+        }
+
+        headers = {
+            'X-Initialization-Vector': iv,
+            'X-Authentication-Tag': auth_tag
+        }
+
+        # Send the callback to the configured URL
+        webhook_url = current_app.config.get('WEBHOOK_URL')
+        response = requests.post(webhook_url, json=response_payload, headers=headers, verify=False)
+        return response

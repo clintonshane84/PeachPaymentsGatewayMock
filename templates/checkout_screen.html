@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Page</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+        }
+        .payment-method, .refund-option, .pay-now {
+            border: 1px solid #e1e1e1;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .payment-method .card {
+            padding: 10px;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+        }
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+        }
+        .toggle-btn label {
+            margin-right: 10px;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 25px;
+        }
+        .toggle-switch input {
+            display: none;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 25px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 17px;
+            width: 17px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #0056b3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        .refund-options button {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="payment-method">
+            <h5>Payment method</h5>
+            <div class="card">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <img src="https://img.icons8.com/color/48/000000/visa.png" alt="Visa" />
+                        <span>•••• 0091</span>
+                        <p>Expires 04/2027</p>
+                    </div>
+                    <a href="#">Replace</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="wallet-credits">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="toggle-btn">
+                    <label for="walletToggle">Use asap! wallet credits</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="walletToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <span>Avail R 413.00</span>
+            </div>
+        </div>
+
+        <div class="refund-option">
+            <h5>Where would you like to be refunded to?</h5>
+            <div class="refund-options">
+                <button class="btn btn-primary" id="refundCardBtn">My card</button>
+                <button class="btn btn-outline-primary" id="refundWalletBtn">My asap! wallet</button>
+            </div>
+            <small class="text-muted">
+                <i class="fas fa-info-circle"></i> Card refunds take about 3-5 working days, the exact time depends on your bank.
+            </small>
+        </div>
+
+        <div class="pay-now">
+            <div class="d-flex justify-content-between align-items-center">
+                <span>Delivery time • Today 11:30-12:00</span>
+                <button class="btn btn-primary">Pay now (R0.00)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        document.getElementById('walletToggle').addEventListener('change', function() {
+            if(this.checked) {
+                // Code to handle wallet credits usage
+            } else {
+                // Code to handle wallet credits disabling
+            }
+        });
+
+        document.getElementById('refundCardBtn').addEventListener('click', function() {
+            this.classList.add('btn-primary');
+            this.classList.remove('btn-outline-primary');
+            document.getElementById('refundWalletBtn').classList.remove('btn-primary');
+            document.getElementById('refundWalletBtn').classList.add('btn-outline-primary');
+        });
+
+        document.getElementById('refundWalletBtn').addEventListener('click', function() {
+            this.classList.add('btn-primary');
+            this.classList.remove('btn-outline-primary');
+            document.getElementById('refundCardBtn').classList.remove('btn-primary');
+            document.getElementById('refundCardBtn').classList.add('btn-outline-primary');
+        });
+    </script>
+</body>
+</html>
