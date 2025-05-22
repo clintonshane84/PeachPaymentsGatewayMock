@@ -21,7 +21,7 @@ pip install --upgrade pip; pip3 install -r requirements.txt
 
 ##### 4. Create a new `.env` document with:
 ```shell
-cp ./env.sample ./.env
+cp env.sample .env
 ```
 ##### **Note:**
 Be sure to edit values to match your environment.
