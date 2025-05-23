@@ -129,7 +129,7 @@ class PaymentEndpoint:
         db.session.add(new_transaction)
         db.session.commit()
 
-        payment_gateway_host = current_app.config.get('PAYMENT_GATEWAY_HOST', 'http://192.168.31.93:5080')
+        payment_gateway_host = current_app.config.get('PAYMENT_GATEWAY_HOST', 'http://localhost')
 
         # Create the mock response
         response = {
